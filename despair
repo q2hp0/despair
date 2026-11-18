@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+tmp="$(mktemp -d)"
+trap 'rm -rf -- "$tmp"' EXIT
+
+for cmd in java javac; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        printf 'despair: %s is missing.\n' "$cmd" >&2
+        exit 1
+    fi
+done
+
+sd=""
+
+if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
+    sd="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
+if [[ -n "$sd" && -f "$sd/src/main/java/ds/ds.java" ]]; then
+    src="$sd/src/main/java/ds"
+else
+    command -v curl >/dev/null 2>&1 || {
+        echo "despair: curl is missing."
+        exit 1
+    }
+
+    base="${DESPAIR_RAW_BASE:-https://raw.githubusercontent.com/q2hp0/despair/main/}"
+
+    for f in ds.java er.java gn.java; do
+        curl -fsSL "$base/src/main/java/ds/$f" -o "$tmp/$f"
+    done
+
+    src="$tmp"
+fi
+
+mkdir -p "$tmp/classes"
+
+javac -d "$tmp/classes" "$src"/*.java
+
+java -cp "$tmp/classes" ds.ds "$@"
